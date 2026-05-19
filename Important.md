@@ -91,3 +91,11 @@ Warp 原版对“并行工具调用”的支持要分两层看：协议层会声
 `local_openai` 对 fork / restore conversation 的支持不能只看“task messages 有没有复制过去”。真正影响多轮质量的是 reasoning replay：现在约定把可回放的 Responses reasoning item JSON 存进 `AgentReasoning` message 的 `server_message_data`，restore 时再优先从这里还原 `{"type":"reasoning","encrypted_content":...}`。后续如果再改 `app/src/ai/agent/api/local_openai/stream.rs` 或 `request.rs` 里的 reasoning 流程，记得同时维护这份持久化 payload；否则 UI 虽然还能看到 thinking 文本，但 fork/restore 后 provider 侧的 reasoning 上下文还是会丢。
 
 NLD 相关的 Cargo feature 现在以 upstream 的 `nld_classifier_v1` / `nld_classifier_v2` 为准，不要再把旧的 `nld_onnx_model` 或 `nld_improvements` 加回 `app/Cargo.toml` 或打包脚本里。当前这两个旧名字在仓库里已经没有有效定义，重新带回来会直接让 `cargo metadata` 或打包构建失败。
+
+Windows 上如果要在 VS Code 里看 Rust 变量值，优先用 `x86_64-pc-windows-msvc` 工具链配 `cppvsdbg`，不要继续沿用 `lldb` 那套 `cargo` 内嵌调试配置。这个仓库的 `[profile.dev]` 在根 `Cargo.toml` 里默认是 `debug = "line-tables-only"`，只够行号和 backtrace，不够稳定看局部变量；要做真正的单步看值，至少要用 `cargo build --config profile.dev.debug=2` 之类的方式临时补 full debuginfo。
+
+Windows 下如果 full debuginfo 构建突然卡在 `app/build.rs` 复制 `target\\debug\\conpty.dll`，先检查是不是有正在运行的仓库开发实例占住了 `target\\debug\\warp-oss.exe`。当前 `.vscode/tasks.json` 的 `build_warp_oss_fastdev_windows` 已经会先停掉这个路径对应的进程再构建；但如果还有别的外部进程锁住 `conpty.dll`，优先先把相关 Warp 开发实例或占用它的终端进程关掉，再重试调试构建。
+
+不要在 Windows 的这条 `warp-oss + fast_dev` VS Code 调试任务里直接把整个 `warp` 包切到 `profile.dev.debug=2`。这次验证下来，`target\\debug\\deps\\libwarp-*.rlib` 会膨胀到 4GB 以上，`link.exe` 会把它当成无效库格式忽略，随后出现一大串 `_CTOR` / `warp::run` 的 unresolved externals 和 `LNK1120`。也就是说，这不是普通代码编译错误，而是 full debuginfo 把超大 rlib 撑爆了 MSVC 链接链路；默认任务应保留普通 `cargo build --bin=warp-oss --features=fast_dev`。
+
+如果后续还想在 Windows 上尽量看变量，又不重蹈 `libwarp` 爆体积的坑，优先走“选择性符号”方案，而不是再给根包 `warp` 全量开 `debug=2`。当前仓库新增了短名 profile `wdbg`：根包继续 `line-tables-only`，避免 `libwarp` 失控；`warp_terminal`、`warp_completer`、`warp_core`、`command` 这些常调的子 crate 单独开 rich debug 并把 `opt-level` 降回 `0`。对应的 VS Code 任务是 `build_warp_oss_fastdev_windows_wdbg`，启动配置是 `Debug executable 'warp' with fast_dev (selected crate symbols)`。

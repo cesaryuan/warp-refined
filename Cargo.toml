@@ -432,6 +432,31 @@ image.opt-level = 3
 png.opt-level = 3
 miniz_oxide.opt-level = 3
 
+# A Windows-friendly debugging profile for large workspace builds.
+# Keep the root `warp` package on lightweight symbols so `libwarp` does not
+# grow large enough to break MSVC linking, and selectively turn rich symbols
+# back on for the crates we actively step through.
+[profile.wdbg]
+inherits = "dev"
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+[profile.wdbg.package.warp_terminal]
+debug = true
+opt-level = 0
+
+[profile.wdbg.package.warp_completer]
+debug = true
+opt-level = 0
+
+[profile.wdbg.package.warp_core]
+debug = true
+opt-level = 0
+
+[profile.wdbg.package.command]
+debug = true
+opt-level = 0
+
 # A profile that behaves like release but enables ThinLTO, which should produce
 # binaries with better runtime performance with little build-time overhead.
 [profile.release-lto]
